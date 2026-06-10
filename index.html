@@ -1,0 +1,808 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#1E2B23">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Kcal">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<title>Kcal Dagboek</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,650&family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #F2F5F0;
+    --card: #FFFFFF;
+    --ink: #1E2B23;
+    --ink-soft: #5C6B61;
+    --line: #DDE5DC;
+    --leaf: #3E7C4F;
+    --leaf-deep: #2C5E3A;
+    --energy: #D97B29;
+    --danger: #B3402E;
+    --radius: 16px;
+    --shadow: 0 1px 3px rgba(30,43,35,.08), 0 4px 14px rgba(30,43,35,.06);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html { font-size: 16px; }
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    height: 100vh;
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ── Dagkop (compact) ── */
+  header {
+    background: var(--ink);
+    color: #F4F7F2;
+    padding: calc(env(safe-area-inset-top, 0px) + 10px) 12px 10px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  header button.nav {
+    background: rgba(255,255,255,.1);
+    border: none;
+    color: #F4F7F2;
+    width: 36px; height: 36px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    font-size: 1.05rem;
+    cursor: pointer;
+    transition: background .15s;
+  }
+  header button.nav:active { background: rgba(255,255,255,.25); }
+  header button.nav:disabled { opacity: .3; }
+  .day-info { flex: 1; min-width: 0; }
+  .day-label {
+    font-family: 'Fraunces', serif;
+    font-weight: 650;
+    font-size: 1.05rem;
+    line-height: 1.15;
+    text-transform: capitalize;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .day-sub { font-size: .7rem; color: rgba(244,247,242,.55); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .total-inline {
+    flex-shrink: 0;
+    text-align: right;
+    font-family: 'Space Grotesk', monospace;
+    font-weight: 700;
+    font-size: 1.6rem;
+    line-height: 1;
+    color: var(--energy);
+    font-variant-numeric: tabular-nums;
+  }
+  .total-inline small {
+    font-family: 'Inter', sans-serif;
+    font-weight: 500;
+    font-size: .6rem;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: rgba(244,247,242,.6);
+    display: block;
+    margin-top: 2px;
+  }
+
+  /* ── Fotoraster: alles past op één scherm ── */
+  main {
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 6px;
+  }
+  #entryList {
+    height: 100%;
+    display: grid;
+    grid-template-columns: repeat(var(--cols, 1), 1fr);
+    grid-template-rows: repeat(var(--rows, 1), 1fr);
+    gap: 6px;
+  }
+  .entry {
+    position: relative;
+    border-radius: 14px;
+    overflow: hidden;
+    background: var(--line);
+    cursor: pointer;
+  }
+  .entry img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .entry-scrim {
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    height: 55%;
+    background: linear-gradient(to top, rgba(10,16,12,.82), rgba(10,16,12,0));
+    pointer-events: none;
+  }
+  .entry-kcal {
+    position: absolute;
+    left: 0; right: 0;
+    bottom: 8px;
+    text-align: center;
+    font-family: 'Space Grotesk', monospace;
+    font-weight: 700;
+    font-size: var(--kcal-size, 1.5rem);
+    line-height: 1;
+    color: #fff;
+    font-variant-numeric: tabular-nums;
+    text-shadow: 0 1px 6px rgba(0,0,0,.5);
+    pointer-events: none;
+  }
+  .entry-kcal small {
+    display: block;
+    font-family: 'Inter', sans-serif;
+    font-weight: 500;
+    font-size: .62rem;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,.75);
+    margin-top: 3px;
+  }
+  .entry-label {
+    position: absolute;
+    left: 0; right: 0;
+    bottom: calc(var(--kcal-size, 1.5rem) + 16px);
+    text-align: center;
+    font-size: .72rem;
+    font-weight: 500;
+    color: rgba(255,255,255,.85);
+    padding: 0 8px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    pointer-events: none;
+  }
+
+  .entry-time {
+    position: absolute;
+    top: 6px; left: 6px;
+    font-size: .66rem;
+    font-weight: 600;
+    color: #fff;
+    background: rgba(10,16,12,.45);
+    backdrop-filter: blur(4px);
+    padding: 3px 8px;
+    border-radius: 999px;
+    pointer-events: none;
+  }
+
+  /* ── Lightbox ── */
+  .lightbox {
+    position: fixed;
+    inset: 0;
+    background: rgba(10,16,12,.93);
+    z-index: 40;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+  .lightbox.open { display: flex; }
+  .lightbox img {
+    max-width: 100%;
+    max-height: 60vh;
+    border-radius: 18px;
+    object-fit: contain;
+  }
+  .lb-kcal {
+    font-family: 'Space Grotesk', monospace;
+    font-weight: 700;
+    font-size: 2.6rem;
+    line-height: 1;
+    color: var(--energy);
+    font-variant-numeric: tabular-nums;
+    margin-top: 18px;
+  }
+  .lb-kcal small {
+    font-family: 'Inter', sans-serif;
+    font-weight: 500;
+    font-size: .75rem;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,.6);
+  }
+  .lb-meta { color: rgba(255,255,255,.75); font-size: .92rem; margin-top: 8px; }
+  .lb-actions { display: flex; gap: 12px; margin-top: 22px; }
+  .lb-btn {
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    font-size: .95rem;
+    padding: 13px 24px;
+    border-radius: 999px;
+    border: none;
+    cursor: pointer;
+  }
+  .lb-close { background: rgba(255,255,255,.14); color: #fff; }
+  .lb-close:active { background: rgba(255,255,255,.28); }
+  .lb-delete { background: var(--danger); color: #fff; }
+
+  .empty {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 24px;
+    color: var(--ink-soft);
+  }
+  .empty .glyph { font-size: 2.4rem; margin-bottom: 12px; }
+  .empty p { font-size: .92rem; line-height: 1.5; }
+
+  /* ── Camera-knop ── */
+  .fab-wrap {
+    flex-shrink: 0;
+    display: flex;
+    justify-content: center;
+    padding: 10px 0 calc(env(safe-area-inset-bottom, 0px) + 12px);
+  }
+  .fab {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 64px;
+    height: 64px;
+    background: var(--leaf);
+    color: #fff;
+    border: none;
+    border-radius: 50%;
+    box-shadow: 0 6px 20px rgba(62,124,79,.4);
+    cursor: pointer;
+    transition: transform .12s, background .15s;
+  }
+  .fab:active { transform: scale(.96); background: var(--leaf-deep); }
+
+  /* ── Invoer-modal ── */
+  .sheet-backdrop {
+    position: fixed; inset: 0;
+    background: rgba(30,43,35,.5);
+    backdrop-filter: blur(2px);
+    z-index: 30;
+    display: none;
+    align-items: flex-end;
+    justify-content: center;
+  }
+  .sheet-backdrop.open { display: flex; }
+  .sheet {
+    background: var(--card);
+    width: 100%;
+    max-width: 560px;
+    border-radius: 24px 24px 0 0;
+    padding: 22px 20px calc(env(safe-area-inset-bottom, 0px) + 22px);
+    animation: slideUp .25s ease;
+  }
+  @keyframes slideUp { from { transform: translateY(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) { .sheet { animation: none; } }
+  .sheet h2 { font-family: 'Fraunces', serif; font-weight: 650; font-size: 1.25rem; margin-bottom: 16px; }
+  .preview {
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    object-fit: cover;
+    border-radius: 14px;
+    background: var(--line);
+    margin-bottom: 16px;
+  }
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: .8rem; font-weight: 600; color: var(--ink-soft); margin-bottom: 6px; }
+  .field input {
+    width: 100%;
+    font-family: 'Inter', sans-serif;
+    font-size: 1.05rem;
+    padding: 13px 14px;
+    border: 1.5px solid var(--line);
+    border-radius: 12px;
+    background: var(--bg);
+    color: var(--ink);
+  }
+  .field input:focus { outline: none; border-color: var(--leaf); }
+  .field input[type=number] { font-family: 'Space Grotesk', monospace; font-weight: 700; font-size: 1.3rem; }
+  .sheet-actions { display: flex; gap: 10px; margin-top: 18px; }
+  .btn {
+    flex: 1;
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    font-size: 1rem;
+    padding: 15px;
+    border-radius: 14px;
+    border: none;
+    cursor: pointer;
+  }
+  .btn-save { background: var(--leaf); color: #fff; }
+  .btn-save:active { background: var(--leaf-deep); }
+  .btn-save:disabled { background: var(--line); color: var(--ink-soft); }
+  .btn-cancel { background: var(--bg); color: var(--ink); }
+
+  .toast {
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 14px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--ink);
+    color: #fff;
+    font-size: .88rem;
+    padding: 11px 20px;
+    border-radius: 999px;
+    z-index: 50;
+    opacity: 0;
+    transition: opacity .25s;
+    pointer-events: none;
+    white-space: nowrap;
+  }
+  .toast.show { opacity: 1; }
+
+  input[type=file] { display: none; }
+  .fab:focus-visible, .btn:focus-visible, header button.nav:focus-visible { outline: 3px solid var(--energy); outline-offset: 2px; }
+</style>
+</head>
+<body>
+
+<header>
+  <button class="nav" id="prevDay" aria-label="Vorige dag">‹</button>
+  <div class="day-info">
+    <div class="day-label" id="dayLabel">…</div>
+    <div class="day-sub" id="daySub"></div>
+  </div>
+  <div class="total-inline"><span id="totalKcal">0</span><small id="totalUnit">kcal vandaag</small></div>
+  <button class="nav" id="nextDay" aria-label="Volgende dag">›</button>
+  <button class="nav" id="menuBtn" aria-label="Menu">⋯</button>
+</header>
+
+<main id="entryList"></main>
+
+<div class="fab-wrap">
+  <button class="fab" id="addBtn" aria-label="Voeding fotograferen">
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+  </button>
+</div>
+
+<input type="file" id="cameraInput" accept="image/*" capture="environment">
+
+<div class="sheet-backdrop" id="sheetBackdrop">
+  <div class="sheet" role="dialog" aria-label="Maaltijd toevoegen">
+    <h2>Hoeveel kcal schat je?</h2>
+    <img class="preview" id="previewImg" alt="Foto van je maaltijd">
+    <div class="field">
+      <label for="kcalInput">Geschatte kcal</label>
+      <input type="number" id="kcalInput" inputmode="numeric" min="0" max="9999" placeholder="bv. 650">
+    </div>
+    <div class="field">
+      <label for="labelInput">Omschrijving (optioneel)</label>
+      <input type="text" id="labelInput" maxlength="60" placeholder="bv. Pad thai met kip">
+    </div>
+    <div class="sheet-actions">
+      <button class="btn btn-cancel" id="cancelBtn">Annuleer</button>
+      <button class="btn btn-save" id="saveBtn" disabled>Bewaar</button>
+    </div>
+  </div>
+</div>
+
+<div class="sheet-backdrop" id="menuBackdrop">
+  <div class="sheet" role="dialog" aria-label="Menu">
+    <h2>Backup</h2>
+    <p style="font-size:.88rem;color:var(--ink-soft);margin-bottom:16px;line-height:1.5">
+      Je data staat enkel op dit toestel. Exporteer regelmatig een backup-bestand,
+      en importeer dat op een nieuw toestel om je dagboek terug te zetten.
+    </p>
+    <div class="sheet-actions" style="flex-direction:column">
+      <button class="btn btn-save" id="exportBtn">Exporteer backup (JSON)</button>
+      <button class="btn btn-cancel" id="importBtn">Importeer backup</button>
+      <button class="btn btn-cancel" id="menuCloseBtn">Sluit</button>
+    </div>
+  </div>
+</div>
+<input type="file" id="importInput" accept="application/json,.json">
+
+<div class="lightbox" id="lightbox">
+  <img id="lbImg" alt="Maaltijdfoto groot">
+  <div class="lb-kcal"><span id="lbKcal">0</span> <small>kcal</small></div>
+  <div class="lb-meta" id="lbMeta"></div>
+  <div class="lb-actions">
+    <button class="lb-btn lb-delete" id="lbDelete">Verwijder</button>
+    <button class="lb-btn lb-close" id="lbClose">Sluit</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  // ── Opslag: IndexedDB ────────────────────────────────────────────
+  // Eén object store 'days', sleutel = 'YYYY-MM-DD', waarde = array entries.
+  const DB_NAME = 'kcal-dagboek';
+  const DB_VERSION = 1;
+  let dbPromise = null;
+
+  function openDB() {
+    if (dbPromise) return dbPromise;
+    dbPromise = new Promise((resolve, reject) => {
+      const req = indexedDB.open(DB_NAME, DB_VERSION);
+      req.onupgradeneeded = () => {
+        if (!req.result.objectStoreNames.contains('days')) {
+          req.result.createObjectStore('days');
+        }
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+    return dbPromise;
+  }
+
+  function idb(mode, fn) {
+    return openDB().then((db) => new Promise((resolve, reject) => {
+      const tx = db.transaction('days', mode);
+      const os = tx.objectStore('days');
+      const req = fn(os);
+      tx.oncomplete = () => resolve(req ? req.result : undefined);
+      tx.onerror = () => reject(tx.error);
+    }));
+  }
+
+  const store = {
+    async loadDay(dateKey) {
+      try {
+        const val = await idb('readonly', (os) => os.get(dateKey));
+        return Array.isArray(val) ? val : [];
+      } catch (e) {
+        console.error('IndexedDB leesfout:', e);
+        return [];
+      }
+    },
+    async saveDay(dateKey, entries) {
+      try {
+        if (entries.length === 0) {
+          await idb('readwrite', (os) => os.delete(dateKey));
+        } else {
+          await idb('readwrite', (os) => os.put(entries, dateKey));
+        }
+        requestPersistence();
+        return true;
+      } catch (e) {
+        console.error('IndexedDB schrijffout:', e);
+        return false;
+      }
+    },
+    async loadAll() {
+      const days = {};
+      await openDB().then((db) => new Promise((resolve, reject) => {
+        const tx = db.transaction('days', 'readonly');
+        const cur = tx.objectStore('days').openCursor();
+        cur.onsuccess = () => {
+          const c = cur.result;
+          if (c) { days[c.key] = c.value; c.continue(); }
+          else resolve();
+        };
+        cur.onerror = () => reject(cur.error);
+      }));
+      return days;
+    },
+    async importAll(days) {
+      for (const key of Object.keys(days)) {
+        const existing = await store.loadDay(key);
+        const byId = {};
+        existing.concat(days[key]).forEach((e) => { byId[e.id] = e; });
+        await idb('readwrite', (os) => os.put(Object.values(byId), key));
+      }
+    }
+  };
+
+  // Vraag de browser de data nooit automatisch op te ruimen
+  let persistRequested = false;
+  function requestPersistence() {
+    if (persistRequested || !navigator.storage || !navigator.storage.persist) return;
+    persistRequested = true;
+    navigator.storage.persist().catch(() => {});
+  }
+
+  // ── Toestand ─────────────────────────────────────────────────────
+  let currentDate = new Date();
+  let entries = [];
+  let pendingPhoto = null;
+
+  const $ = (id) => document.getElementById(id);
+  const dayLabel = $('dayLabel'), daySub = $('daySub'), totalKcal = $('totalKcal');
+  const entryList = $('entryList'), sheetBackdrop = $('sheetBackdrop');
+  const previewImg = $('previewImg'), kcalInput = $('kcalInput'), labelInput = $('labelInput');
+  const saveBtn = $('saveBtn'), nextDayBtn = $('nextDay');
+
+  function dateKey(d) {
+    return d.getFullYear() + '-' +
+      String(d.getMonth() + 1).padStart(2, '0') + '-' +
+      String(d.getDate()).padStart(2, '0');
+  }
+  function isToday(d) { return dateKey(d) === dateKey(new Date()); }
+
+  function showToast(msg) {
+    const t = $('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2200);
+  }
+
+  // ── Foto comprimeren naar kleine JPEG (max 480px) ────────────────
+  // FileReader i.p.v. URL.createObjectURL: blob-URL's worden in
+  // gesandboxte omgevingen (zoals Claude-artifacts) vaak geblokkeerd.
+  function readFileAsDataURL(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => reject(new Error('Foto kon niet gelezen worden'));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function compressImage(file) {
+    const dataUrl = await readFileAsDataURL(file);
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const MAX = 640;
+          const scale = Math.min(1, MAX / Math.max(img.width, img.height));
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.round(img.width * scale);
+          canvas.height = Math.round(img.height * scale);
+          canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+          resolve(canvas.toDataURL('image/jpeg', 0.55));
+        } catch (e) {
+          // Compressie mislukt (bv. canvas geblokkeerd): bewaar origineel
+          resolve(dataUrl);
+        }
+      };
+      // Decoderen mislukt (bv. HEIC niet ondersteund): bewaar origineel
+      img.onerror = () => resolve(dataUrl);
+      img.src = dataUrl;
+    });
+  }
+
+  // ── Renderen ─────────────────────────────────────────────────────
+  function render() {
+    const fmt = new Intl.DateTimeFormat('nl-BE', { weekday: 'long', day: 'numeric', month: 'long' });
+    dayLabel.textContent = isToday(currentDate) ? 'Vandaag' : fmt.format(currentDate);
+    daySub.textContent = isToday(currentDate) ? fmt.format(currentDate) : '';
+    nextDayBtn.disabled = isToday(currentDate);
+
+    const total = entries.reduce((s, e) => s + e.kcal, 0);
+    totalKcal.textContent = total.toLocaleString('nl-BE');
+    document.getElementById('totalUnit').textContent =
+      isToday(currentDate) ? 'kcal vandaag' : 'kcal die dag';
+
+    if (entries.length === 0) {
+      entryList.style.setProperty('--cols', 1);
+      entryList.style.setProperty('--rows', 1);
+      entryList.innerHTML =
+        '<div class="empty"><div class="glyph">🍽️</div>' +
+        '<p>Nog geen maaltijden vastgelegd.<br>Neem een foto van wat je gaat eten.</p></div>';
+      return;
+    }
+
+    // Kolommen/rijen kiezen zodat alle tegels op één scherm passen,
+    // met zo groot mogelijke tegels (maximaliseer de kortste zijde).
+    const n = entries.length;
+    const rect = entryList.getBoundingClientRect();
+    const gap = 6;
+    let bestCols = 1, bestScore = 0;
+    for (let c = 1; c <= n; c++) {
+      const r = Math.ceil(n / c);
+      const tw = (rect.width - (c - 1) * gap) / c;
+      const th = (rect.height - (r - 1) * gap) / r;
+      const score = Math.min(tw, th);
+      if (score > bestScore) { bestScore = score; bestCols = c; }
+    }
+    entryList.style.setProperty('--cols', bestCols);
+    entryList.style.setProperty('--rows', Math.ceil(n / bestCols));
+    entryList.style.setProperty('--kcal-size',
+      Math.max(14, Math.min(34, Math.round(bestScore * 0.16))) + 'px');
+
+    entryList.innerHTML = '';
+    [...entries].sort((a, b) => b.ts - a.ts).forEach((e) => {
+      const div = document.createElement('div');
+      div.className = 'entry';
+      const time = new Date(e.ts).toLocaleTimeString('nl-BE', { hour: '2-digit', minute: '2-digit' });
+      div.innerHTML =
+        '<img alt="Maaltijdfoto">' +
+        '<div class="entry-scrim"></div>' +
+        (e.label ? '<div class="entry-label"></div>' : '') +
+        '<div class="entry-kcal">' + e.kcal.toLocaleString('nl-BE') + '</div>' +
+        '<div class="entry-time">' + time + '</div>';
+      div.querySelector('img').src = e.photo;
+      if (e.label) div.querySelector('.entry-label').textContent = e.label;
+      div.addEventListener('click', () => openLightbox(e));
+      entryList.appendChild(div);
+    });
+  }
+
+  async function loadAndRender() {
+    entries = await store.loadDay(dateKey(currentDate));
+    render();
+  }
+
+  async function removeEntry(id) {
+    entries = entries.filter((e) => e.id !== id);
+    const ok = await store.saveDay(dateKey(currentDate), entries);
+    if (!ok) showToast('Verwijderen mislukt — probeer opnieuw');
+    render();
+  }
+
+  // ── Foto-flow ────────────────────────────────────────────────────
+  $('addBtn').addEventListener('click', () => $('cameraInput').click());
+
+  $('cameraInput').addEventListener('change', async (ev) => {
+    const file = ev.target.files[0];
+    ev.target.value = '';
+    if (!file) return;
+    try {
+      pendingPhoto = await compressImage(file);
+      previewImg.src = pendingPhoto;
+      kcalInput.value = '';
+      labelInput.value = '';
+      saveBtn.disabled = true;
+      sheetBackdrop.classList.add('open');
+      setTimeout(() => kcalInput.focus(), 250);
+    } catch (e) {
+      showToast(e.message);
+    }
+  });
+
+  kcalInput.addEventListener('input', () => {
+    const v = parseInt(kcalInput.value, 10);
+    saveBtn.disabled = !(v > 0 && v < 10000);
+  });
+
+  saveBtn.addEventListener('click', async () => {
+    const kcal = parseInt(kcalInput.value, 10);
+    if (!(kcal > 0)) return;
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Bewaren…';
+    entries.push({
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      ts: Date.now(),
+      kcal: kcal,
+      label: labelInput.value.trim(),
+      photo: pendingPhoto
+    });
+    const ok = await store.saveDay(dateKey(currentDate), entries);
+    saveBtn.textContent = 'Bewaar';
+    sheetBackdrop.classList.remove('open');
+    if (ok) { showToast('Toegevoegd: ' + kcal + ' kcal'); }
+    else { entries.pop(); showToast('Bewaren mislukt — probeer opnieuw'); }
+    pendingPhoto = null;
+    render();
+  });
+
+  $('cancelBtn').addEventListener('click', () => {
+    sheetBackdrop.classList.remove('open');
+    pendingPhoto = null;
+  });
+  sheetBackdrop.addEventListener('click', (e) => {
+    if (e.target === sheetBackdrop) $('cancelBtn').click();
+  });
+
+  // ── Lightbox ─────────────────────────────────────────────────────
+  const lightbox = $('lightbox');
+  let lbEntry = null;
+
+  function openLightbox(e) {
+    lbEntry = e;
+    $('lbImg').src = e.photo;
+    $('lbKcal').textContent = e.kcal.toLocaleString('nl-BE');
+    const time = new Date(e.ts).toLocaleTimeString('nl-BE', { hour: '2-digit', minute: '2-digit' });
+    $('lbMeta').textContent = (e.label ? e.label + ' · ' : '') + time;
+    lightbox.classList.add('open');
+  }
+  function closeLightbox() {
+    lightbox.classList.remove('open');
+    lbEntry = null;
+  }
+  $('lbClose').addEventListener('click', closeLightbox);
+  lightbox.addEventListener('click', (e) => {
+    if (e.target === lightbox) closeLightbox();
+  });
+  $('lbDelete').addEventListener('click', async () => {
+    if (!lbEntry) return;
+    const id = lbEntry.id;
+    closeLightbox();
+    await removeEntry(id);
+  });
+
+  // Grid herberekenen bij draaien/resizen van het scherm
+  let resizeTimer = null;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(render, 150);
+  });
+
+  // ── Dagnavigatie ─────────────────────────────────────────────────
+  $('prevDay').addEventListener('click', () => {
+    currentDate.setDate(currentDate.getDate() - 1);
+    loadAndRender();
+  });
+  nextDayBtn.addEventListener('click', () => {
+    if (isToday(currentDate)) return;
+    currentDate.setDate(currentDate.getDate() + 1);
+    loadAndRender();
+  });
+
+  // ── Backup: export / import ──────────────────────────────────────
+  const menuBackdrop = $('menuBackdrop');
+  $('menuBtn').addEventListener('click', () => menuBackdrop.classList.add('open'));
+  $('menuCloseBtn').addEventListener('click', () => menuBackdrop.classList.remove('open'));
+  menuBackdrop.addEventListener('click', (e) => {
+    if (e.target === menuBackdrop) menuBackdrop.classList.remove('open');
+  });
+
+  $('exportBtn').addEventListener('click', async () => {
+    try {
+      const days = await store.loadAll();
+      const blob = new Blob(
+        [JSON.stringify({ app: 'kcal-dagboek', version: 1, exported: new Date().toISOString(), days })],
+        { type: 'application/json' }
+      );
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'kcal-dagboek-backup-' + dateKey(new Date()) + '.json';
+      a.click();
+      URL.revokeObjectURL(a.href);
+      menuBackdrop.classList.remove('open');
+      showToast('Backup geëxporteerd');
+    } catch (e) {
+      showToast('Export mislukt');
+    }
+  });
+
+  $('importBtn').addEventListener('click', () => $('importInput').click());
+  $('importInput').addEventListener('change', async (ev) => {
+    const file = ev.target.files[0];
+    ev.target.value = '';
+    if (!file) return;
+    try {
+      const data = JSON.parse(await file.text());
+      if (!data || data.app !== 'kcal-dagboek' || !data.days) {
+        throw new Error('Geen geldig backup-bestand');
+      }
+      await store.importAll(data.days);
+      menuBackdrop.classList.remove('open');
+      showToast('Backup geïmporteerd');
+      loadAndRender();
+    } catch (e) {
+      showToast(e.message || 'Import mislukt');
+    }
+  });
+
+  // ── Service worker (offline + installeerbaar) ────────────────────
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('sw.js').catch(() => {});
+    });
+  }
+
+  loadAndRender();
+})();
+</script>
+</body>
+</html>
